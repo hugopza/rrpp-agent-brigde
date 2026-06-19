@@ -1,0 +1,11 @@
+[project]
+name = "rrpp-agent-bridge"
+version = "0.1.0"
+description = "Safe and observable bridge foundation for future promoter agents"
+requires-python = ">=3.12"
+
+[project.scripts]
+rrpp-bridge = "rrpp_bridge.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
