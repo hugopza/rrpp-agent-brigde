@@ -50,6 +50,14 @@ Never include secrets, credentials, personal data, raw customer messages, or pro
 - Evidence: ADR-0004, migration 003, Gmail adapter/connector tests, and successful real inbox synchronization.
 - Implication: The connector may read message content from `INBOX` but cannot mutate the mailbox; future outbound email requires a separate ADR and authorization scope.
 
+### 2026-06-19 - Dashboard visual system
+
+- Status: Verified
+- Area: dashboard
+- Fact: The private dashboard uses packaged, dependency-free CSS with design tokens, Catalan operational copy, responsive cards/tables, accessible focus states, and no external font or asset requests.
+- Evidence: `rrpp_bridge/static/dashboard.css`, authenticated HTTP smoke test, packaged-wheel asset check, and web tests.
+- Implication: Future dashboard views should reuse existing card, badge, grid, table, form, and record-detail patterns instead of adding isolated inline styles.
+
 ### 2026-06-19 - Repository baseline
 
 - Status: Verified

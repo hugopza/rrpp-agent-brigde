@@ -230,6 +230,28 @@ class WebTests(unittest.TestCase):
         cookie, _ = self.login()
         self.assertIn("rrpp_session=", cookie)
 
+    def test_packaged_stylesheet_and_dashboard_hierarchy_are_served(self):
+        asset, css = self.request("/assets/dashboard.css")
+        self.assertEqual("200 OK", asset["status"])
+        self.assertEqual("text/css; charset=utf-8", asset["headers"]["Content-Type"])
+        self.assertIn(".grid", css)
+        cookie, _ = self.login()
+        dashboard, page = self.request(cookie=cookie)
+        self.assertEqual("200 OK", dashboard["status"])
+        self.assertIn('href="/assets/dashboard.css"', page)
+        self.assertIn('class="grid metrics"', page)
+        self.assertIn("Mode d’execució", page)
+        self.assertIn("Connector Gmail", page)
+
+    def test_dashboard_escapes_untrusted_message_fields(self):
+        conn = connect(self.path)
+        ingest_local(conn, BridgeTests.payload("xss", sender="<script>alert(1)</script>"))
+        conn.close()
+        cookie, _ = self.login()
+        _, page = self.request(cookie=cookie)
+        self.assertNotIn("<script>alert(1)</script>", page)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", page)
+
     def test_mode_change_requires_csrf_and_is_audited(self):
         cookie, csrf = self.login()
         denied, _ = self.request("/admin/mode", "POST", "mode=live", cookie)

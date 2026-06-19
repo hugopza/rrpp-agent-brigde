@@ -23,4 +23,4 @@ testpaths = ["tests"]
 packages = ["rrpp_bridge"]
 
 [tool.hatch.build]
-include = ["rrpp_bridge/**/*.py", "rrpp_bridge/sql/*.sql"]
+include = ["rrpp_bridge/**/*.py", "rrpp_bridge/sql/*.sql", "rrpp_bridge/static/*.css"]
