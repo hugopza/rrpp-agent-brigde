@@ -6,6 +6,8 @@ Dependency-free V1 bridge foundation for safe, observable processing of future c
 
 Requires Python 3.12 or newer. Set the environment variables shown in `.env.example`; do not commit a real `.env` file.
 
+The application automatically reads a repository-local `.env` file and never overrides variables already supplied by the operating system.
+
 PowerShell example:
 
 ```powershell
@@ -39,6 +41,16 @@ python -m rrpp_bridge worker --once
 `migrate` creates a consistent SQLite backup before applying pending migrations. Automatic retries use bounded exponential backoff. Expired worker leases are recovered automatically and can also be recovered explicitly with the CLI.
 
 `RRPP_CANARY_SENDERS` is a comma-separated allowlist used only in `canary` mode. Even `live` uses the simulated local sink in V1; adding a real external executor requires a separate security review and ADR.
+
+After the local virtual environment and `.env` have been prepared, the shortest startup command is:
+
+```powershell
+.\scripts\run-local.ps1
+```
+
+This runs the worker in a hidden child process and the dashboard in the current terminal. Press `Ctrl+C` to stop the dashboard; the script also stops its worker process.
+
+Open `http://127.0.0.1:8080/login`. The prepared local username is `admin`; its generated password is the `RRPP_DASHBOARD_PASSWORD` value in the ignored `.env` file.
 
 ## Tests
 

@@ -1,10 +1,29 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 VALID_MODES = frozenset({"shadow", "dry-run", "canary", "live"})
+ENV_KEY = re.compile(r"^RRPP_[A-Z0-9_]+$")
+
+
+def load_local_env(path: Path = Path(".env")) -> None:
+    """Load the project's minimal KEY=VALUE format without overriding process env."""
+    if not path.is_file():
+        return
+    for number, raw_line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            raise ValueError(f"Invalid .env entry on line {number}")
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not ENV_KEY.fullmatch(key):
+            raise ValueError(f"Invalid .env key on line {number}")
+        os.environ.setdefault(key, value.strip())
 
 
 @dataclass(frozen=True)
@@ -22,6 +41,7 @@ class Settings:
 
     @classmethod
     def from_env(cls, *, require_auth: bool = True) -> "Settings":
+        load_local_env()
         mode = os.getenv("RRPP_MODE", "shadow")
         if mode not in VALID_MODES:
             raise ValueError(f"RRPP_MODE must be one of: {', '.join(sorted(VALID_MODES))}")

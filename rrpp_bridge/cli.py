@@ -7,7 +7,7 @@ import time
 from wsgiref.simple_server import make_server
 
 from .config import Settings
-from .db import backup_database, connect, current_version, initialize
+from .db import backup_database, connect, current_version, initialize, latest_version
 from .queue import JobQueue
 from .runtime import get_mode, initialize_mode
 from .service import process_one
@@ -32,8 +32,10 @@ def main() -> None:
     settings = Settings.from_env(require_auth=args.command == "web")
 
     if args.command == "migrate":
-        backup = backup_database(settings.database_path)
+        existed = settings.database_path.exists()
         conn = connect(settings.database_path)
+        backup = (backup_database(settings.database_path)
+                  if existed and current_version(conn) < latest_version() else None)
         applied = initialize(conn)
         initialize_mode(conn, settings.mode)
         print(json.dumps({"applied": applied, "backup": str(backup) if backup else None}))

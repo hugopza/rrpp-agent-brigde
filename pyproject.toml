@@ -7,6 +7,10 @@ requires-python = ">=3.12"
 [project.scripts]
 rrpp-bridge = "rrpp_bridge.cli:main"
 
+[build-system]
+requires = ["hatchling>=1.30"]
+build-backend = "hatchling.build"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import io
+import os
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
 
-from rrpp_bridge.config import Settings
+from rrpp_bridge.config import Settings, load_local_env
 from rrpp_bridge.db import backup_database, connect, current_version, initialize
 from rrpp_bridge.executor import Executor
 from rrpp_bridge.queue import JobQueue
@@ -170,6 +172,23 @@ class MigrationTests(unittest.TestCase):
             copied.close()
             conn.close()
 
+
+class ConfigTests(unittest.TestCase):
+    def test_local_env_loads_only_rrpp_keys_without_overriding_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / ".env"
+            path.write_text("RRPP_MODE=live\nRRPP_PORT=9090\n", encoding="utf-8")
+            with patch.dict("os.environ", {"RRPP_MODE": "shadow"}, clear=True):
+                load_local_env(path)
+                self.assertEqual("shadow", os.environ["RRPP_MODE"])
+                self.assertEqual("9090", os.environ["RRPP_PORT"])
+
+    def test_local_env_rejects_unknown_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / ".env"
+            path.write_text("UNSAFE_KEY=value\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_local_env(path)
 
 class WebTests(unittest.TestCase):
     def setUp(self):

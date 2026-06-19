@@ -55,6 +55,11 @@ def current_version(conn: sqlite3.Connection) -> int:
     return int(row[0])
 
 
+def latest_version() -> int:
+    migrations = _migrations()
+    return migrations[-1][0] if migrations else 0
+
+
 def initialize(conn: sqlite3.Connection) -> list[int]:
     applied: list[int] = []
     for version, sql in _migrations():

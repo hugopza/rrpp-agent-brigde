@@ -55,3 +55,27 @@ Record mistakes that can recur or reveal a weakness in the development process. 
 - Cause: SQLite was treated as a single inert file instead of an active transactional database.
 - Correction: Backups use SQLite's online backup API, and migration versions are rechecked while holding `BEGIN IMMEDIATE`.
 - Prevention: Use database-native backup and transactional migration primitives; never copy a live SQLite main file as the only backup.
+
+### 2026-06-19 - Local setup assumed newer PowerShell cryptography and UTF-8 behavior
+
+- Context: Automated creation of local secrets and `.env` on Windows PowerShell.
+- Error: The shell lacked the static `RandomNumberGenerator.Fill` method, and `Set-Content -Encoding utf8` added a BOM that invalidated the first environment key.
+- Cause: The setup command assumed newer .NET and PowerShell encoding semantics than the user's installed shell provides.
+- Correction: Secret generation uses an instantiated random-number generator with `GetBytes`; the file is written with BOM-less `UTF8Encoding`, while the application accepts UTF-8 with or without BOM.
+- Prevention: Use Windows PowerShell 5.1-compatible APIs for setup scripts and explicitly control BOM behavior for machine-readable files.
+
+### 2026-06-19 - Packaging configuration omitted the build backend
+
+- Context: Installing the project editable and building the first wheel.
+- Error: `pip` fell back to setuptools, whose flat-layout discovery treated `var/` as another top-level package.
+- Cause: Hatch-specific build configuration existed, but `pyproject.toml` did not declare Hatchling in `[build-system]`.
+- Correction: The manifest now declares `hatchling.build`, explicitly packages `rrpp_bridge`, includes migration SQL, and ignores build artifacts.
+- Prevention: A packaging change is incomplete until editable installation and wheel/sdist builds succeed from a workspace containing ignored runtime directories.
+
+### 2026-06-19 - Editable install excluded its build helper
+
+- Context: Retrying editable installation after installing Hatchling locally.
+- Error: `pip install --no-build-isolation -e .` could not import the `editables` helper.
+- Cause: Disabling build isolation also bypassed discovery and installation of an editable-only build requirement.
+- Correction: Install the helper in the project virtual environment, then verify both editable installation and the generated CLI entry point.
+- Prevention: Use normal build isolation for editable installs unless every dynamic build requirement has been explicitly provisioned and verified.

@@ -34,6 +34,14 @@ Never include secrets, credentials, personal data, raw customer messages, or pro
 - Evidence: migrations 002, `queue.py`, `runtime.py`, `action_executor.py`, and automated tests.
 - Implication: Operators can validate recovery and all safe modes locally, but must not interpret simulated execution as connector readiness.
 
+### 2026-06-19 - Prepared Windows local environment
+
+- Status: Verified
+- Area: local development
+- Fact: The project can load an ignored BOM-compatible `.env`, run from a repository virtual environment, build wheel/sdist artifacts, and start web plus worker through `scripts/run-local.ps1` without Docker.
+- Evidence: configuration tests, successful editable installation and build, CLI status, and HTTP login smoke test.
+- Implication: Local onboarding requires only Python 3.12; runtime credentials and data remain ignored and machine-local.
+
 ### 2026-06-19 - Repository baseline
 
 - Status: Verified
