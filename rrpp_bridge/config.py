@@ -17,6 +17,8 @@ class Settings:
     host: str = "127.0.0.1"
     port: int = 8080
     max_attempts: int = 3
+    lease_seconds: int = 60
+    canary_senders: frozenset[str] = frozenset()
 
     @classmethod
     def from_env(cls, *, require_auth: bool = True) -> "Settings":
@@ -31,6 +33,18 @@ class Settings:
                 "Dashboard credentials are required; password must be at least 12 "
                 "characters and session secret at least 32 characters"
             )
+        try:
+            port = int(os.getenv("RRPP_PORT", "8080"))
+            max_attempts = int(os.getenv("RRPP_MAX_ATTEMPTS", "3"))
+            lease_seconds = int(os.getenv("RRPP_LEASE_SECONDS", "60"))
+        except ValueError as exc:
+            raise ValueError("Port, max attempts, and lease seconds must be integers") from exc
+        if not 1 <= port <= 65535 or max_attempts < 1 or lease_seconds < 5:
+            raise ValueError("Port must be 1-65535, max attempts >= 1, and lease seconds >= 5")
+        canary_senders = frozenset(
+            value.strip().casefold() for value in os.getenv("RRPP_CANARY_SENDERS", "").split(",")
+            if value.strip()
+        )
         return cls(
             database_path=Path(os.getenv("RRPP_DATABASE_PATH", "var/rrpp-bridge.db")),
             mode=mode,
@@ -38,6 +52,8 @@ class Settings:
             dashboard_password=password,
             session_secret=secret,
             host=os.getenv("RRPP_HOST", "127.0.0.1"),
-            port=int(os.getenv("RRPP_PORT", "8080")),
-            max_attempts=max(1, int(os.getenv("RRPP_MAX_ATTEMPTS", "3"))),
+            port=port,
+            max_attempts=max_attempts,
+            lease_seconds=lease_seconds,
+            canary_senders=canary_senders,
         )

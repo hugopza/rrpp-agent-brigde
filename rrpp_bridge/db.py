@@ -1,49 +1,14 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
+from importlib import resources
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS events (
-    id TEXT PRIMARY KEY, channel TEXT NOT NULL, external_message_id TEXT NOT NULL,
-    sender TEXT NOT NULL, recipient TEXT NOT NULL, subject TEXT NOT NULL,
-    body_text TEXT NOT NULL, received_at TEXT NOT NULL, ingested_at TEXT NOT NULL,
-    metadata_json TEXT NOT NULL, work_key TEXT NOT NULL, status TEXT NOT NULL,
-    UNIQUE(channel, external_message_id)
-);
-CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY, event_id TEXT NOT NULL UNIQUE REFERENCES events(id),
-    work_key TEXT NOT NULL,
-    state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
-    available_at TEXT NOT NULL, claimed_at TEXT, worker_id TEXT,
-    last_error_code TEXT, last_error_message TEXT, created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS actions (
-    id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES events(id),
-    job_id TEXT NOT NULL REFERENCES jobs(id), type TEXT NOT NULL,
-    payload_json TEXT NOT NULL, state TEXT NOT NULL, mode TEXT NOT NULL,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS policy_decisions (
-    id TEXT PRIMARY KEY, action_id TEXT NOT NULL UNIQUE REFERENCES actions(id),
-    outcome TEXT NOT NULL, policy_id TEXT NOT NULL, reason TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS audit_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, occurred_at TEXT NOT NULL,
-    actor TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL, outcome TEXT NOT NULL, details_json TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_jobs_claim ON jobs(state, available_at, created_at);
-CREATE INDEX IF NOT EXISTS idx_jobs_work_state ON jobs(work_key, state);
-CREATE INDEX IF NOT EXISTS idx_audit_recent ON audit_log(occurred_at DESC);
-"""
+MIGRATION_RE = re.compile(r"^(\d{3})_[a-z0-9_]+\.sql$")
 
 
 def connect(path: Path | str) -> sqlite3.Connection:
@@ -57,11 +22,69 @@ def connect(path: Path | str) -> sqlite3.Connection:
     return conn
 
 
-def initialize(conn: sqlite3.Connection) -> None:
-    conn.executescript(SCHEMA)
-    conn.execute(
-        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, datetime('now'))"
-    )
+def _migrations() -> list[tuple[int, str]]:
+    root = resources.files("rrpp_bridge.sql")
+    found: list[tuple[int, str]] = []
+    for item in root.iterdir():
+        match = MIGRATION_RE.match(item.name)
+        if match:
+            found.append((int(match.group(1)), item.read_text(encoding="utf-8")))
+    return sorted(found)
+
+
+def _statements(script: str) -> Iterator[str]:
+    pending = ""
+    for line in script.splitlines(keepends=True):
+        pending += line
+        if sqlite3.complete_statement(pending):
+            statement = pending.strip()
+            if statement:
+                yield statement
+            pending = ""
+    if pending.strip():
+        raise ValueError("Incomplete SQL migration statement")
+
+
+def current_version(conn: sqlite3.Connection) -> int:
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
+    ).fetchone()
+    if not exists:
+        return 0
+    row = conn.execute("SELECT COALESCE(MAX(version), 0) FROM schema_migrations").fetchone()
+    return int(row[0])
+
+
+def initialize(conn: sqlite3.Connection) -> list[int]:
+    applied: list[int] = []
+    for version, sql in _migrations():
+        with transaction(conn, immediate=True):
+            if version <= current_version(conn):
+                continue
+            for statement in _statements(sql):
+                conn.execute(statement)
+            conn.execute(
+                "INSERT INTO schema_migrations(version,applied_at) VALUES(?,datetime('now'))",
+                (version,),
+            )
+            applied.append(version)
+    return applied
+
+
+def backup_database(path: Path | str) -> Path | None:
+    source = Path(path)
+    if not source.exists():
+        return None
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+    target = source.with_name(f"{source.name}.pre-migration-{stamp}.bak")
+    source_conn = sqlite3.connect(source)
+    target_conn = sqlite3.connect(target)
+    try:
+        source_conn.backup(target_conn)
+    finally:
+        target_conn.close()
+        source_conn.close()
+    return target
 
 
 @contextmanager
